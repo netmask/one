@@ -1,0 +1,38 @@
+# Example configuration for GitLab + Linear setup
+version: 1
+
+project:
+  name: "Beta Startup"
+  paths:
+    - "/Users/jane/Projects/beta-app"
+
+git:
+  provider: gitlab
+  remote: origin
+  base_branch: develop
+  
+  gitlab:
+    project_id: 42
+    token_env: GITLAB_TOKEN
+
+browser:
+  type: firefox
+  profile: "default-release"
+
+ticket:
+  system: linear
+  base_url: https://linear.app/beta
+
+templates:
+  pr_title: "{ticket_id} - {branch_name}"
+  pr_body: |
+    ## Summary
+    
+    
+    ## Changes
+    - 
+    
+    Closes {ticket_url}
+
+branch_patterns:
+  ticket_id: "^(BET-\\d+)"

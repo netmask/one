@@ -1,0 +1,47 @@
+# Example configuration for GitHub + Jira setup
+version: 1
+
+project:
+  name: "Acme Corp Project"
+  paths:
+    - "/Users/john/Projects/acme-app"
+    - "/Users/john/Projects/acme-frontend"
+
+git:
+  provider: github
+  remote: origin
+  base_branch: main
+  
+  github:
+    owner: acme-corp
+    repo: main-app
+    token_env: GITHUB_TOKEN
+
+browser:
+  type: chrome
+  profile: "Work Profile"
+
+ticket:
+  system: jira
+  base_url: https://acme.atlassian.net
+  
+  jira:
+    board_id: ACME
+    token_env: JIRA_TOKEN
+
+templates:
+  pr_title: "[{ticket_id}] {branch_name}"
+  pr_body: |
+    ## Changes
+    - 
+    
+    ## Related Ticket
+    {ticket_url}
+    
+    ## Checklist
+    - [ ] Tests added/updated
+    - [ ] Documentation updated
+    - [ ] Code reviewed
+
+branch_patterns:
+  ticket_id: "^(ACME-\\d+)"

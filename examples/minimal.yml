@@ -1,0 +1,24 @@
+# Minimal configuration example
+version: 1
+
+project:
+  name: "Personal Project"
+  paths:
+    - "/Users/alex/Projects/personal"
+
+git:
+  provider: github
+  remote: origin
+  base_branch: main
+  
+  github:
+    owner: alex-dev
+    repo: personal-repo
+    token_env: GITHUB_TOKEN
+
+browser:
+  type: safari
+
+# No ticket system configured
+# No templates (will use defaults)
+# No branch patterns
