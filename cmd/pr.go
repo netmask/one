@@ -31,8 +31,8 @@ func init() {
 }
 
 type prModel struct {
-	cfg        *config.ProjectConfig
-	repo       *git.Repository
+	cfg         *config.ProjectConfig
+	repo        *git.Repository
 	customTitle string
 	customDesc  string
 	noBrowser   bool

@@ -103,7 +103,7 @@ func matchesPath(currentDir string, projectPaths []string) bool {
 
 	for _, path := range projectPaths {
 		pathNorm := normalizePath(path)
-		
+
 		// Check if current directory starts with the project path
 		if strings.HasPrefix(currentNorm, pathNorm) {
 			return true

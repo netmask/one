@@ -2,13 +2,13 @@ package config
 
 // ProjectConfig represents the complete project configuration
 type ProjectConfig struct {
-	Version        int              `yaml:"version"`
-	Project        ProjectInfo      `yaml:"project"`
-	Git            GitConfig        `yaml:"git"`
-	Browser        BrowserConfig    `yaml:"browser"`
-	Ticket         *TicketConfig    `yaml:"ticket,omitempty"`
-	Templates      *Templates       `yaml:"templates,omitempty"`
-	BranchPatterns *BranchPatterns  `yaml:"branch_patterns,omitempty"`
+	Version        int             `yaml:"version"`
+	Project        ProjectInfo     `yaml:"project"`
+	Git            GitConfig       `yaml:"git"`
+	Browser        BrowserConfig   `yaml:"browser"`
+	Ticket         *TicketConfig   `yaml:"ticket,omitempty"`
+	Templates      *Templates      `yaml:"templates,omitempty"`
+	BranchPatterns *BranchPatterns `yaml:"branch_patterns,omitempty"`
 }
 
 // ProjectInfo contains basic project information
@@ -19,11 +19,11 @@ type ProjectInfo struct {
 
 // GitConfig contains git-related configuration
 type GitConfig struct {
-	Provider   string          `yaml:"provider"`
-	Remote     string          `yaml:"remote"`
-	BaseBranch string          `yaml:"base_branch"`
-	GitHub     *GitHubConfig   `yaml:"github,omitempty"`
-	GitLab     *GitLabConfig   `yaml:"gitlab,omitempty"`
+	Provider   string           `yaml:"provider"`
+	Remote     string           `yaml:"remote"`
+	BaseBranch string           `yaml:"base_branch"`
+	GitHub     *GitHubConfig    `yaml:"github,omitempty"`
+	GitLab     *GitLabConfig    `yaml:"gitlab,omitempty"`
 	Bitbucket  *BitbucketConfig `yaml:"bitbucket,omitempty"`
 }
 
@@ -55,9 +55,9 @@ type BrowserConfig struct {
 
 // TicketConfig contains ticket system configuration
 type TicketConfig struct {
-	System  string       `yaml:"system"`
-	BaseURL string       `yaml:"base_url"`
-	Jira    *JiraConfig  `yaml:"jira,omitempty"`
+	System  string      `yaml:"system"`
+	BaseURL string      `yaml:"base_url"`
+	Jira    *JiraConfig `yaml:"jira,omitempty"`
 }
 
 // JiraConfig contains Jira-specific settings

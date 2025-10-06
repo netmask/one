@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
+	"one/internal/auth"
 	"one/internal/config"
 	"one/internal/git"
 )
@@ -33,13 +34,30 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get current directory: %w", err)
 	}
 
+	// Try to detect Git remote information
+	var detectedRemote *git.RemoteInfo
+	var detectedBaseBranch string
+
+	remoteInfo, err := git.DetectRemote("origin")
+	if err == nil {
+		detectedRemote = remoteInfo
+		fmt.Printf("✓ Detected Git remote: %s (%s/%s)\n\n", remoteInfo.Provider, remoteInfo.Owner, remoteInfo.Repo)
+	}
+
+	baseBranch, err := git.GetDefaultBranch()
+	if err == nil {
+		detectedBaseBranch = baseBranch
+	} else {
+		detectedBaseBranch = "main"
+	}
+
 	// Form values
 	var (
 		name         string = projectName
 		path         string = currentDir
 		provider     string
 		remote       string = "origin"
-		baseBranch   string = "main"
+		baseBranchV  string = detectedBaseBranch
 		owner        string
 		repo         string
 		projectID    string
@@ -53,54 +71,76 @@ func runInit(cmd *cobra.Command, args []string) error {
 		ticketURL    string
 		boardID      string
 		pattern      string = "^([A-Z]+-\\d+)"
+		authNow      bool
 	)
+
+	// Pre-fill with detected values
+	if detectedRemote != nil {
+		provider = detectedRemote.Provider
+		owner = detectedRemote.Owner
+		repo = detectedRemote.Repo
+		workspace = detectedRemote.Owner
+		repoSlug = detectedRemote.Repo
+	}
 
 	// Main form
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewInput().
-				Title("Project Name").
-				Value(&name).
-				Validate(func(s string) error {
-					if s == "" {
-						return fmt.Errorf("project name is required")
-					}
-					return nil
-				}),
+	var mainFormGroups []*huh.Group
 
-			huh.NewInput().
-				Title("Project Path").
-				Description("Path to your project directory").
-				Value(&path).
-				Validate(func(s string) error {
-					if s == "" {
-						return fmt.Errorf("path is required")
-					}
-					return nil
-				}),
-		),
+	// Project info group
+	mainFormGroups = append(mainFormGroups, huh.NewGroup(
+		huh.NewInput().
+			Title("Project Name").
+			Value(&name).
+			Validate(func(s string) error {
+				if s == "" {
+					return fmt.Errorf("project name is required")
+				}
+				return nil
+			}),
 
-		huh.NewGroup(
-			huh.NewSelect[string]().
-				Title("Git Provider").
-				Options(
-					huh.NewOption("GitHub", "github"),
-					huh.NewOption("GitLab", "gitlab"),
-					huh.NewOption("Bitbucket", "bitbucket"),
-				).
-				Value(&provider),
+		huh.NewInput().
+			Title("Project Path").
+			Description("Path to your project directory").
+			Value(&path).
+			Validate(func(s string) error {
+				if s == "" {
+					return fmt.Errorf("path is required")
+				}
+				return nil
+			}),
+	))
 
-			huh.NewInput().
-				Title("Remote Name").
-				Value(&remote).
-				Placeholder("origin"),
+	// Git configuration group
+	providerSelect := huh.NewSelect[string]().
+		Title("Git Provider").
+		Options(
+			huh.NewOption("GitHub", "github"),
+			huh.NewOption("GitLab", "gitlab"),
+			huh.NewOption("Bitbucket", "bitbucket"),
+		).
+		Value(&provider)
 
-			huh.NewInput().
-				Title("Base Branch").
-				Value(&baseBranch).
-				Placeholder("main"),
-		),
-	)
+	// If we detected a provider, show it in the description
+	if detectedRemote != nil {
+		providerSelect.Description(fmt.Sprintf("Detected: %s", detectedRemote.Provider))
+	}
+
+	mainFormGroups = append(mainFormGroups, huh.NewGroup(
+		providerSelect,
+
+		huh.NewInput().
+			Title("Remote Name").
+			Value(&remote).
+			Placeholder("origin"),
+
+		huh.NewInput().
+			Title("Base Branch").
+			Description(fmt.Sprintf("Detected: %s", detectedBaseBranch)).
+			Value(&baseBranchV).
+			Placeholder(detectedBaseBranch),
+	))
+
+	form := huh.NewForm(mainFormGroups...)
 
 	if err := form.Run(); err != nil {
 		return err
@@ -116,7 +156,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 			huh.NewGroup(
 				huh.NewInput().
 					Title("GitHub Owner").
-					Description("Organization or username").
+					Description(getDetectedDesc(detectedRemote, "owner")).
 					Value(&owner).
 					Validate(func(s string) error {
 						if s == "" {
@@ -127,6 +167,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 				huh.NewInput().
 					Title("Repository Name").
+					Description(getDetectedDesc(detectedRemote, "repo")).
 					Value(&repo).
 					Validate(func(s string) error {
 						if s == "" {
@@ -229,6 +270,17 @@ func runInit(cmd *cobra.Command, args []string) error {
 				Description("Set up Jira, Linear, or GitHub Issues integration").
 				Value(&hasTicket),
 		),
+
+		huh.NewGroup(
+			huh.NewConfirm().
+				Title("Authenticate with GitHub now?").
+				Description("Use OAuth device flow to securely authenticate").
+				Value(&authNow).
+				Affirmative("Yes, authenticate").
+				Negative("Skip for now"),
+		).WithHideFunc(func() bool {
+			return provider != "github"
+		}),
 	)
 
 	if err := configForm.Run(); err != nil {
@@ -298,7 +350,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		Git: config.GitConfig{
 			Provider:   provider,
 			Remote:     remote,
-			BaseBranch: baseBranch,
+			BaseBranch: baseBranchV,
 		},
 		Browser: config.BrowserConfig{
 			Type:    browser,
@@ -364,16 +416,55 @@ func runInit(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	fmt.Printf("  Location: %s\n", savedPath)
 	fmt.Println()
+
+	// Authenticate with GitHub if requested
+	if authNow && provider == "github" {
+		fmt.Println("🔐 Starting GitHub authentication...")
+		fmt.Println()
+
+		_, err := auth.GitHubDeviceFlow(name)
+		if err != nil {
+			fmt.Printf("⚠️  Authentication failed: %v\n", err)
+			fmt.Printf("You can authenticate later by setting the %s environment variable.\n\n", tokenEnv)
+		} else {
+			fmt.Println()
+			fmt.Println(successStyle.Render("✓ Successfully authenticated with GitHub!"))
+			fmt.Println()
+		}
+	} else if !authNow && provider == "github" {
+		fmt.Println("Authentication skipped.")
+		fmt.Println("To authenticate later, set the environment variable:")
+		fmt.Printf("  export %s=\"your-token-here\"\n", tokenEnv)
+		fmt.Println()
+	}
+
 	fmt.Println("Next steps:")
-	fmt.Println("  1. Set your authentication token:")
-	fmt.Printf("     export %s=\"your-token-here\"\n", tokenEnv)
-	fmt.Println()
-	fmt.Println("  2. Start working on a task:")
+	fmt.Println("  1. Start working on a task:")
 	fmt.Println("     one start TICKET-123")
 	fmt.Println()
-	fmt.Println("  3. Create a pull request:")
+	fmt.Println("  2. Create a pull request:")
 	fmt.Println("     one pr")
 	fmt.Println()
 
 	return nil
+}
+
+// getDetectedDesc returns a description showing detected values
+func getDetectedDesc(remote *git.RemoteInfo, field string) string {
+	if remote == nil {
+		return ""
+	}
+
+	switch field {
+	case "owner":
+		if remote.Owner != "" {
+			return fmt.Sprintf("Detected: %s", remote.Owner)
+		}
+	case "repo":
+		if remote.Repo != "" {
+			return fmt.Sprintf("Detected: %s", remote.Repo)
+		}
+	}
+
+	return ""
 }

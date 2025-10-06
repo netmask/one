@@ -43,7 +43,7 @@ func renderMarkdown(content string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
+
 	rendered, err := r.Render(content)
 	if err != nil {
 		return "", err
@@ -82,7 +82,7 @@ one init
 	// Build markdown list
 	var markdown strings.Builder
 	markdown.WriteString("# Configured Projects\n\n")
-	
+
 	for _, project := range projects {
 		markdown.WriteString(fmt.Sprintf("## %s\n\n", project.Project.Name))
 		markdown.WriteString(fmt.Sprintf("**Provider**: %s  \n", project.Git.Provider))
@@ -125,7 +125,7 @@ func runConfigShow(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create markdown formatted output with syntax highlighting
-	markdown := fmt.Sprintf("# Current Project Configuration\n\n**Project**: %s\n\n## Configuration\n\n```yaml\n%s```\n", 
+	markdown := fmt.Sprintf("# Current Project Configuration\n\n**Project**: %s\n\n## Configuration\n\n```yaml\n%s```\n",
 		cfg.Project.Name, string(data))
 
 	// Try to render with Glow

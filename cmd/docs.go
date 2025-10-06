@@ -68,7 +68,7 @@ func showSpecification() error {
 		fmt.Println(string(content))
 		return nil
 	}
-	
+
 	rendered, err := r.Render(string(content))
 	if err != nil {
 		fmt.Println(string(content))
@@ -132,7 +132,7 @@ func showExamples() error {
 		fmt.Println(markdown)
 		return nil
 	}
-	
+
 	rendered, err := r.Render(markdown)
 	if err != nil {
 		fmt.Println(markdown)

@@ -21,7 +21,7 @@ func init() {
 
 func runHelp(cmd *cobra.Command, args []string) error {
 	helpContent := getHelpContent()
-	
+
 	// Render with Glamour
 	r, err := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
@@ -32,7 +32,7 @@ func runHelp(cmd *cobra.Command, args []string) error {
 		fmt.Println(helpContent)
 		return nil
 	}
-	
+
 	rendered, err := r.Render(helpContent)
 	if err != nil {
 		fmt.Println(helpContent)
