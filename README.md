@@ -79,13 +79,17 @@ One CLI **automatically detects** your project, uses the right credentials, open
 ### 🌐 **Multi-Provider**
 - **Git**: GitHub, GitLab, Bitbucket
 - **Tickets**: Jira, Linear, GitHub Issues
-- **Browsers**: Chrome, Firefox, Safari (with profiles!)
+- **Browsers**: Chrome, Firefox, Safari
+  - Shows actual profile names & emails
+  - No more "Profile 1" confusion!
 
 </td>
 <td>
 
 ### ⚡ **Smart & Fast**
-- Auto-detects project from Git remote
+- Auto-detects Git provider, owner, repo
+- Auto-detects browser profiles with emails
+- Hooks for linting, testing, automation
 - < 100ms startup time
 - Single binary, no dependencies
 - Cross-platform (macOS/Linux/Windows)
@@ -156,10 +160,17 @@ Creating pull request...
   ✓ Pushed to origin
   ✓ PR created: https://github.com/acme/app/pull/123
 
-Opening in browser...
+⚡ Running after_pr hooks...
+
+  [1/1] Notify team
+  ✓ Success (0.3s)
+
+Opening in browser (Work Profile - john@acme.com)...
 
 Done! 🚀
 ```
+
+**Everything automated:** Git detection, OAuth, hooks, browser profiles!
 
 ---
 
@@ -238,6 +249,7 @@ That's it! One CLI handles the rest. 🎉
 | `one ticket <ticket-id>` | Open ticket in browser |
 | `one config list` | List all configured projects |
 | `one config show` | Show current project config |
+| `one profiles` | List browser profiles with emails |
 | `one help` | Beautiful formatted help |
 | `one docs` | View documentation |
 
@@ -311,9 +323,25 @@ templates:
 
 branch_patterns:
   ticket_id: "^([A-Z]+-\\d+)"
+
+# Hooks: Run commands before/after PR creation
+hooks:
+  before_pr:
+    - name: "Lint code"
+      command: "bundle exec rubocop"
+      fail_on_error: true  # Stop if lint fails
+    
+    - name: "Run tests"
+      command: "bundle exec rspec"
+      fail_on_error: true  # Stop if tests fail
+  
+  after_pr:
+    - name: "Notify team"
+      command: 'curl -X POST $SLACK_WEBHOOK -d "{\"text\":\"PR created!\"}"'
+      fail_on_error: false  # Continue even if notification fails
 ```
 
-See [examples/](examples/) for more configurations.
+See [examples/](examples/) for more configurations and [HOOKS.md](HOOKS.md) for complete hooks documentation.
 
 ---
 

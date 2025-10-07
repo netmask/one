@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.0] - 2025-10-06
 
 ### Added
+- 🪝 **Hooks System** - Run commands before/after PR creation
+  - `before_pr` hooks for validation (linting, tests, formatting)
+  - `after_pr` hooks for automation (notifications, deployment)
+  - Fail fast with `fail_on_error: true`
+  - Real-time output display
+  - See [HOOKS.md](HOOKS.md) for documentation
 - 🎨 **Huh Forms Integration** - Beautiful interactive forms for all input
 - 🤖 **Auto-Detection** - Automatically detect Git remote, owner, repo, and branch
   - Detects GitHub, GitLab, Bitbucket from remote URL

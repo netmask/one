@@ -13,6 +13,7 @@ import (
 	"one/internal/browser"
 	"one/internal/config"
 	"one/internal/git"
+	"one/internal/hooks"
 	"one/internal/template"
 )
 
@@ -66,6 +67,19 @@ func runPR(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Get current branch for hooks
+	branch, err := repo.CurrentBranch()
+	if err != nil {
+		return err
+	}
+
+	// Run before_pr hooks (if any)
+	if cfg.Hooks != nil && len(cfg.Hooks.BeforePR) > 0 {
+		if err := hooks.ExecuteHooks(cfg.Hooks.BeforePR, "before_pr"); err != nil {
+			return err
+		}
+	}
+
 	m := &prModel{
 		cfg:         cfg,
 		repo:        repo,
@@ -73,6 +87,7 @@ func runPR(cmd *cobra.Command, args []string) error {
 		customDesc:  customDesc,
 		noBrowser:   noBrowser,
 		status:      "Creating pull request...",
+		branchName:  branch,
 	}
 
 	p := tea.NewProgram(m)
@@ -83,10 +98,187 @@ func runPR(cmd *cobra.Command, args []string) error {
 
 	fm := finalModel.(*prModel)
 	if fm.err != nil {
+		if fm.err.Error() == "HOOKS_FIRST" {
+			// This was just to get branch info, now actually create PR
+			return runPRActual(cfg, repo, branch, customTitle, customDesc, noBrowser)
+		}
 		return fm.err
 	}
 
+	// Run after_pr hooks (if any)
+	if cfg.Hooks != nil && len(cfg.Hooks.AfterPR) > 0 {
+		if err := hooks.ExecuteHooks(cfg.Hooks.AfterPR, "after_pr"); err != nil {
+			// Don't fail the whole command if after hooks fail
+			fmt.Printf("Warning: after_pr hooks failed: %v\n", err)
+		}
+	}
+
 	return nil
+}
+
+func runPRActual(cfg *config.ProjectConfig, repo *git.Repository, branch, customTitle, customDesc string, noBrowser bool) error {
+	// Check if clean
+	clean, err := repo.IsClean()
+	if err != nil {
+		return fmt.Errorf("failed to check git status: %w", err)
+	}
+	if !clean {
+		return fmt.Errorf("working directory is not clean")
+	}
+
+	// Extract ticket ID
+	var ticketID string
+	if cfg.BranchPatterns != nil && cfg.BranchPatterns.TicketID != "" {
+		id, err := git.ParseTicketID(branch, cfg.BranchPatterns.TicketID)
+		if err == nil {
+			ticketID = id
+		}
+	}
+
+	fmt.Println()
+	fmt.Println("Creating pull request...")
+	fmt.Println()
+	fmt.Printf("  Project: %s\n", cfg.Project.Name)
+	fmt.Printf("  Branch: %s\n", branch)
+	if ticketID != "" {
+		fmt.Printf("  Ticket ID: %s\n", ticketID)
+	}
+	fmt.Println()
+
+	// Push to remote
+	fmt.Println("Pushing to remote...")
+	if err := repo.Push(cfg.Git.Remote, branch); err != nil {
+		return fmt.Errorf("failed to push: %w", err)
+	}
+	fmt.Println(lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Render("  ✓ Pushed to " + cfg.Git.Remote))
+	fmt.Println()
+
+	// Build template context
+	ctx := template.Context{
+		"ticket_id":   ticketID,
+		"branch_name": branch,
+		"base_branch": cfg.Git.BaseBranch,
+		"date":        template.GetCurrentDate(),
+	}
+
+	if cfg.Ticket != nil && ticketID != "" {
+		ctx["ticket_url"] = template.BuildTicketURL(cfg.Ticket.System, cfg.Ticket.BaseURL, ticketID)
+	}
+
+	// Generate title and body
+	title := customTitle
+	if title == "" && cfg.Templates != nil {
+		title = template.Render(cfg.Templates.PRTitle, ctx)
+	}
+	if title == "" {
+		title = branch
+	}
+
+	body := customDesc
+	if body == "" && cfg.Templates != nil {
+		body = template.Render(cfg.Templates.PRBody, ctx)
+	}
+
+	// Get token
+	token, err := getTokenForPR(cfg)
+	if err != nil {
+		return err
+	}
+
+	// Create PR based on provider
+	fmt.Println("Creating PR...")
+	var prURL string
+	switch cfg.Git.Provider {
+	case "github":
+		if cfg.Git.GitHub == nil {
+			return fmt.Errorf("GitHub configuration missing")
+		}
+		client := api.NewGitHubClient(token)
+		prURL, err = client.CreatePullRequest(
+			cfg.Git.GitHub.Owner,
+			cfg.Git.GitHub.Repo,
+			title,
+			body,
+			branch,
+			cfg.Git.BaseBranch,
+		)
+	case "gitlab":
+		if cfg.Git.GitLab == nil {
+			return fmt.Errorf("GitLab configuration missing")
+		}
+		client := api.NewGitLabClient(token)
+		prURL, err = client.CreateMergeRequest(
+			cfg.Git.GitLab.ProjectID,
+			title,
+			body,
+			branch,
+			cfg.Git.BaseBranch,
+		)
+	default:
+		return fmt.Errorf("unsupported provider: %s", cfg.Git.Provider)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Render("  ✓ PR created: " + prURL))
+	fmt.Println()
+
+	// Open in browser
+	if !noBrowser {
+		fmt.Println("Opening in browser...")
+		if err := browser.OpenURL(cfg.Browser.Type, cfg.Browser.Profile, prURL); err != nil {
+			// Non-fatal
+		}
+		fmt.Println()
+	}
+
+	fmt.Println(lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Bold(true).Render("Done! 🚀"))
+	fmt.Println()
+
+	// Run after_pr hooks (if any)
+	if cfg.Hooks != nil && len(cfg.Hooks.AfterPR) > 0 {
+		if err := hooks.ExecuteHooks(cfg.Hooks.AfterPR, "after_pr"); err != nil {
+			// Don't fail the whole command if after hooks fail
+			fmt.Printf("Warning: after_pr hooks failed: %v\n", err)
+		}
+	}
+
+	return nil
+}
+
+func getTokenForPR(cfg *config.ProjectConfig) (string, error) {
+	// Try keyring first
+	token, err := auth.GetToken(cfg.Git.Provider, cfg.Project.Name)
+	if err == nil {
+		return token.AccessToken, nil
+	}
+
+	// Try environment variable
+	var envVar string
+	switch cfg.Git.Provider {
+	case "github":
+		if cfg.Git.GitHub != nil {
+			envVar = cfg.Git.GitHub.TokenEnv
+		}
+	case "gitlab":
+		if cfg.Git.GitLab != nil {
+			envVar = cfg.Git.GitLab.TokenEnv
+		}
+	case "bitbucket":
+		if cfg.Git.Bitbucket != nil {
+			envVar = cfg.Git.Bitbucket.TokenEnv
+		}
+	}
+
+	if envVar != "" {
+		if token := os.Getenv(envVar); token != "" {
+			return token, nil
+		}
+	}
+
+	return "", fmt.Errorf("not authenticated with %s", cfg.Git.Provider)
 }
 
 func (m *prModel) Init() tea.Cmd {
@@ -118,6 +310,16 @@ func (m *prModel) createPR() tea.Cmd {
 				m.ticketID = ticketID
 			}
 		}
+
+		// Run before_pr hooks (outside of Bubble Tea to show output)
+		// We need to exit the TUI temporarily
+		return prCreatedMsg{err: fmt.Errorf("HOOKS_FIRST")}
+	}
+}
+
+func (m *prModel) createPRAfterHooks() tea.Cmd {
+	return func() tea.Msg {
+		branch := m.branchName
 
 		// Push to remote
 		if err := m.repo.Push(m.cfg.Git.Remote, branch); err != nil {

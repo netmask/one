@@ -390,6 +390,71 @@ One CLI automatically knows which project you're in based on your current direct
 - Path handling (case sensitivity)
 - File permissions
 
+## 🪝 Hooks System
+
+Run arbitrary commands before/after creating PRs.
+
+### Before PR Hooks
+
+Perfect for validation:
+- **Linting**: RuboCop, ESLint, Pylint
+- **Tests**: RSpec, Jest, PyTest
+- **Type checking**: TypeScript, MyPy
+- **Formatting**: Prettier, Black, gofmt
+- **Security**: npm audit, bundler-audit
+
+**If a before_pr hook fails with `fail_on_error: true`, the PR won't be created!**
+
+### After PR Hooks
+
+Perfect for automation:
+- **Notifications**: Slack, Discord, email
+- **Project management**: Update Jira, Linear
+- **Deploy**: Preview environments
+- **Documentation**: Auto-generate docs
+- **Analytics**: Log to tracking systems
+
+### Example
+
+```yaml
+hooks:
+  before_pr:
+    - name: "Lint code"
+      command: "bundle exec rubocop"
+      fail_on_error: true  # Stop if fails
+    
+    - name: "Run tests"
+      command: "bundle exec rspec"
+      fail_on_error: true
+  
+  after_pr:
+    - name: "Notify team"
+      command: 'curl -X POST $SLACK_WEBHOOK -d "{\"text\":\"PR created!\"}"'
+      fail_on_error: false  # Just warn if fails
+```
+
+### Real-time Output
+
+```
+⚡ Running before_pr hooks...
+
+  [1/2] Lint code
+        $ bundle exec rubocop
+
+  ✓ Success (took 1.2s)
+
+  [2/2] Run tests
+        $ bundle exec rspec
+
+  ✓ Success (took 15.3s)
+
+✓ All before_pr hooks completed
+```
+
+See [HOOKS.md](HOOKS.md) for complete documentation.
+
+---
+
 ## 📦 Installation
 
 **Single Binary:**

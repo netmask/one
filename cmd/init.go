@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"one/internal/auth"
+	browserpkg "one/internal/browser"
 	"one/internal/config"
 	"one/internal/git"
 )
@@ -247,6 +248,18 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	// Browser and ticket configuration
+	
+	// Detect available browser profiles
+	var chromeProfiles []browserpkg.Profile
+	var firefoxProfiles []browserpkg.Profile
+	
+	if cp, err := browserpkg.ListChromeProfiles(); err == nil {
+		chromeProfiles = cp
+	}
+	if fp, err := browserpkg.ListFirefoxProfiles(); err == nil {
+		firefoxProfiles = fp
+	}
+
 	configForm := huh.NewForm(
 		huh.NewGroup(
 			huh.NewSelect[string]().
@@ -257,11 +270,77 @@ func runInit(cmd *cobra.Command, args []string) error {
 					huh.NewOption("Safari", "safari"),
 				).
 				Value(&browser),
+		),
+	)
 
-			huh.NewInput().
-				Title("Browser Profile (optional)").
-				Description("Leave empty for default profile").
-				Value(&profile),
+	if err := configForm.Run(); err != nil {
+		return err
+	}
+
+	// Show profile selection based on browser choice
+	if browser == "chrome" && len(chromeProfiles) > 0 {
+		var selectedProfile string
+		var profileOptions []huh.Option[string]
+		
+		// Add "Skip (use default)" option
+		profileOptions = append(profileOptions, huh.NewOption("Skip (use default profile)", ""))
+		
+		// Add each Chrome profile
+		for _, p := range chromeProfiles {
+			label := browserpkg.FormatProfile(p)
+			profileOptions = append(profileOptions, huh.NewOption(label, p.Directory))
+		}
+		
+		profileForm := huh.NewForm(
+			huh.NewGroup(
+				huh.NewSelect[string]().
+					Title("Select Chrome Profile").
+					Description("Choose which Google account to use").
+					Options(profileOptions...).
+					Value(&selectedProfile),
+			),
+		)
+		
+		if err := profileForm.Run(); err != nil {
+			return err
+		}
+		
+		profile = selectedProfile
+	} else if browser == "firefox" && len(firefoxProfiles) > 0 {
+		var selectedProfile string
+		var profileOptions []huh.Option[string]
+		
+		// Add "Skip (use default)" option
+		profileOptions = append(profileOptions, huh.NewOption("Skip (use default profile)", ""))
+		
+		// Add each Firefox profile
+		for _, p := range firefoxProfiles {
+			profileOptions = append(profileOptions, huh.NewOption(p.Name, p.Directory))
+		}
+		
+		profileForm := huh.NewForm(
+			huh.NewGroup(
+				huh.NewSelect[string]().
+					Title("Select Firefox Profile").
+					Options(profileOptions...).
+					Value(&selectedProfile),
+			),
+		)
+		
+		if err := profileForm.Run(); err != nil {
+			return err
+		}
+		
+		profile = selectedProfile
+	}
+
+	// Continue with ticket configuration
+	ticketForm := huh.NewForm(
+		huh.NewGroup(
+			huh.NewConfirm().
+				Title("Configure Ticket System?").
+				Description("Set up Jira, Linear, or GitHub Issues integration").
+				Value(&hasTicket),
 		),
 
 		huh.NewGroup(
@@ -283,7 +362,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		}),
 	)
 
-	if err := configForm.Run(); err != nil {
+	if err := ticketForm.Run(); err != nil {
 		return err
 	}
 

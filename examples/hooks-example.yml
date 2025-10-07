@@ -1,0 +1,70 @@
+# Example configuration with hooks
+version: 1
+
+project:
+  name: "Project with Hooks"
+  paths:
+    - "/Users/john/Projects/with-hooks"
+
+git:
+  provider: github
+  remote: origin
+  base_branch: main
+  
+  github:
+    owner: company
+    repo: project
+    token_env: GITHUB_TOKEN
+
+browser:
+  type: chrome
+  profile: "Work Profile"
+
+# Hooks allow you to run commands before/after PR creation
+hooks:
+  # Run before creating the PR
+  before_pr:
+    - name: "Lint code"
+      description: "Run rubocop to check code style"
+      command: "bundle exec rubocop"
+      fail_on_error: true  # Stop if this fails
+    
+    - name: "Run tests"
+      description: "Run the test suite"
+      command: "bundle exec rspec"
+      fail_on_error: true  # Stop if tests fail
+    
+    - name: "Check bundle"
+      description: "Ensure Gemfile.lock is up to date"
+      command: "bundle check || bundle install"
+      fail_on_error: false  # Just warn if this fails
+  
+  # Run after PR is created
+  after_pr:
+    - name: "Notify team"
+      description: "Send Slack notification"
+      command: "curl -X POST $SLACK_WEBHOOK -d '{\"text\":\"PR created!\"}'"
+      fail_on_error: false
+    
+    - name: "Create Jira comment"
+      description: "Link PR in Jira ticket"
+      command: "./scripts/link-pr-to-jira.sh"
+      fail_on_error: false
+
+# More examples of useful hooks:
+#
+# Before PR:
+#   - Format code: prettier --write .
+#   - Type check: npm run typecheck
+#   - Lint: eslint .
+#   - Security scan: npm audit
+#   - Build: npm run build
+#   - Database migrations check: rails db:migrate:status
+#   - Documentation: npm run docs
+#
+# After PR:
+#   - Deploy preview: ./deploy-preview.sh
+#   - Update changelog: ./update-changelog.sh
+#   - Send notifications: ./notify-reviewers.sh
+#   - Create tracking ticket: ./create-qa-ticket.sh
+#   - Update project management: ./update-project-board.sh

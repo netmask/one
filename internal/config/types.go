@@ -9,6 +9,7 @@ type ProjectConfig struct {
 	Ticket         *TicketConfig   `yaml:"ticket,omitempty"`
 	Templates      *Templates      `yaml:"templates,omitempty"`
 	BranchPatterns *BranchPatterns `yaml:"branch_patterns,omitempty"`
+	Hooks          *Hooks          `yaml:"hooks,omitempty"`
 }
 
 // ProjectInfo contains basic project information
@@ -75,6 +76,20 @@ type Templates struct {
 // BranchPatterns contains regex patterns for branch parsing
 type BranchPatterns struct {
 	TicketID string `yaml:"ticket_id"`
+}
+
+// Hooks contains commands to run at specific points
+type Hooks struct {
+	BeforePR []Hook `yaml:"before_pr,omitempty"`
+	AfterPR  []Hook `yaml:"after_pr,omitempty"`
+}
+
+// Hook represents a command to run
+type Hook struct {
+	Name        string `yaml:"name"`
+	Command     string `yaml:"command"`
+	Description string `yaml:"description,omitempty"`
+	FailOnError bool   `yaml:"fail_on_error"`
 }
 
 // GlobalConfig represents the global configuration
